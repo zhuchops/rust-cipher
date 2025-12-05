@@ -1,5 +1,4 @@
 use std::{
-    fmt::format,
     fs::{self, File},
     io::Write,
     path::{Path, PathBuf},
@@ -8,7 +7,6 @@ use std::{
 use aes_gcm::{
     AeadCore, Aes256Gcm, Key, KeyInit, Nonce,
     aead::{AeadMut, OsRng},
-    aes::cipher,
 };
 use argon2::{Argon2, password_hash::SaltString};
 use clap::{ArgGroup, Parser, command};
@@ -103,7 +101,15 @@ fn decrypt_file(path: &Path, password: &str) -> Result<(), anyhow::Error> {
         .decrypt(nonce, ciphertext)
         .expect("Wrong password or corrupted file");
 
-    println!("Decrypted file:\n{}", String::from_utf8_lossy(&plaintext));
+    let input_name = path.file_name().unwrap().to_str().unwrap();
+    let input_name_list = input_name.split('.').collect::<Vec<&str>>();
+    let output_name_list = &input_name_list[0..input_name_list.len() - 1];
+    let output_name = output_name_list.join(".");
+
+    let mut file = File::create(&output_name).expect("Error creating file");
+    file.write_all(&plaintext).expect("Error writing to file");
+
+    // println!("Decrypted file:\n{}", String::from_utf8_lossy(&plaintext));
 
     Ok(())
 }
