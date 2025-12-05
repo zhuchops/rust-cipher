@@ -1,6 +1,13 @@
 [package]
 name = "rust-cipher"
-version = "0.1.0"
+version = "1.0.0"
+authors = ["zhuchops zhuchok@duck.com"]
+license = "Apache-2.0"
+description = "A tool to encrypt or decrypt files with password"
+homepage =
+repository =
+keywords = ["cli", "crypt", "cipher"]
+categories = ["command-line-utilities"]
 edition = "2024"
 
 [dependencies]
