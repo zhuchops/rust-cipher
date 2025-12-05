@@ -6,7 +6,7 @@ use std::{
 };
 
 use aes_gcm::{
-    AeadCore, Aes256Gcm, KeyInit,
+    AeadCore, Aes256Gcm, Key, KeyInit, Nonce,
     aead::{AeadMut, OsRng},
     aes::cipher,
 };
@@ -30,20 +30,21 @@ struct Cli {
     #[arg(name = "PATH_TO_FILE")]
     path: PathBuf,
 }
+
 fn main() -> Result<(), anyhow::Error> {
     let args = Cli::parse();
 
     let password = rpassword::prompt_password("Enter password: ")?;
 
     if args.encrypt {
-        encrypt_file(&args.path, password)?;
+        encrypt_file(&args.path, password.as_str())?;
     } else {
         decrypt_file(&args.path, password.as_str())?;
     }
     Ok(())
 }
 
-fn derive_key(user_password: String, salt: String) -> [u8; 32] {
+fn derive_key(user_password: &str, salt: &str) -> [u8; 32] {
     let mut output_key = [0u8; 32];
 
     let argon2 = Argon2::default();
@@ -54,10 +55,10 @@ fn derive_key(user_password: String, salt: String) -> [u8; 32] {
     output_key
 }
 
-fn encrypt_file(path: &PathBuf, password: String) -> Result<(), anyhow::Error> {
+fn encrypt_file(path: &PathBuf, password: &str) -> Result<(), anyhow::Error> {
     let salt = SaltString::generate(&mut OsRng);
 
-    let key_bytes = derive_key(password, salt.to_string());
+    let key_bytes = derive_key(password, salt.as_str());
     let key = aes_gcm::Key::<Aes256Gcm>::from_slice(&key_bytes);
 
     let mut cipher = Aes256Gcm::new(key);
@@ -80,5 +81,29 @@ fn encrypt_file(path: &PathBuf, password: String) -> Result<(), anyhow::Error> {
     Ok(())
 }
 fn decrypt_file(path: &Path, password: &str) -> Result<(), anyhow::Error> {
-    todo!()
+    let file = fs::read(path).expect("cannot read file");
+
+    let salt_len = file[0] as usize;
+
+    let salt_bytes = &file[1..1 + salt_len];
+    let salt_str = std::str::from_utf8(salt_bytes).expect("Invalid salt encoding");
+
+    let key_bytes = derive_key(password, salt_str);
+    let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
+
+    let nonce_start = 1 + salt_len;
+    let nonce_end = nonce_start + 12;
+    let nonce_bytes = &file[nonce_start..nonce_end];
+    let nonce = Nonce::from_slice(nonce_bytes);
+
+    let ciphertext = &file[nonce_end..];
+
+    let mut cipher = Aes256Gcm::new(key);
+    let plaintext = cipher
+        .decrypt(nonce, ciphertext)
+        .expect("Wrong password or corrupted file");
+
+    println!("Decrypted file:\n{}", String::from_utf8_lossy(&plaintext));
+
+    Ok(())
 }
